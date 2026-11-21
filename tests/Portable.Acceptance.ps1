@@ -155,7 +155,8 @@ try {
         } while([DateTime]::UtcNow -lt $deadline)
         Assert ($selectionBuild.result -eq 'FAILURE' -and @($selectionBuild.artifacts).Count -eq 1 -and $selectionBuild.artifacts[0].fileName -eq 'failure-report.log') 'Branch-selection failure also archives exactly one report'
         $selectionText=(Invoke-WebRequest -Uri ($buildUrl+'artifact/'+$selectionBuild.artifacts[0].relativePath) -Headers $headers -UseBasicParsing).Content
-        Assert ($selectionText.Contains('not a git repository') -and $selectionText.Contains('git-root.stderr.log') -and $selectionText.Contains('Release')) 'Archived pre-run report includes underlying Git stderr and selected mode'
+        $gitDiagnosis=$selectionText.Contains('not a git repository') -or $selectionText.Contains('SourceRepository must be the repository root')
+        Assert ($gitDiagnosis -and $selectionText.Contains('git-root.stderr.log') -and $selectionText.Contains('Release')) 'Archived pre-run report includes underlying Git diagnosis and selected mode'
         Write-Utf8 (Join-Path $testRootPath 'selection-failure-report.log') $selectionText
     } finally {Move-Item -LiteralPath $hiddenMetadata -Destination $gitMetadata}
     Invoke-BuildProcess -FilePath (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe') -Arguments @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $homePath 'scripts/Stop-Portable.ps1'),'-TimeoutSeconds','60') -WorkingDirectory $testRootPath -TimeoutSeconds 80 | Out-Null

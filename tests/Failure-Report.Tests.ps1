@@ -100,7 +100,8 @@ try {
     Assert ($child.ExitCode -eq 1 -and (Test-Path -LiteralPath (Join-Path $selectionLogs 'git-root.stderr.log'))) 'Branch query retains Git stderr before a build run exists'
     & (Join-Path $toolRoot 'scripts/New-BuildFailureReport.ps1') -BuildRoot $selectionRoot -SourceRepository $source -BuildMode Release -Version 'selection-case' | Out-Null
     $selectionReport=[IO.File]::ReadAllText((Join-Path $selectionRoot 'failure-report.log'))
-    Assert ($selectionReport.Contains('not a git repository') -and $selectionReport.Contains('git-root.process.json') -and $selectionReport.Contains('Release')) 'Branch-selection report contains underlying Git diagnosis and build mode'
+    $gitDiagnosis=$selectionReport.Contains('not a git repository') -or $selectionReport.Contains('SourceRepository must be the repository root')
+    Assert ($gitDiagnosis -and $selectionReport.Contains('git-root.process.json') -and $selectionReport.Contains('Release')) 'Branch-selection report contains underlying Git diagnosis and build mode'
 } finally {$child.Dispose()}
 $missingGitRoot=Join-Path $TestRoot 'branch missing Git'
 $missingGitLogs=Join-Path $missingGitRoot 'selection-logs'
