@@ -1,0 +1,32 @@
+# Generated dependencies and machine-specific state
+/.publish/
+/builds/
+/dist/
+/jenkins-home/
+/logs/
+/test-results/
+/verification/
+/portable-config.json
+/cpm/
+/v15/
+/v15-moved/
+/review-task.md
+
+# Reproducible, non-secret plugin locks
+/runtime/*
+!/runtime/jenkins-plugin-lock.json
+!/runtime/jenkins-language-plugin-lock.json
+
+# Credentials, caches and binary outputs
+**/secrets/
+.env
+.env.*
+*.log
+*.zip
+*.partial
+*.pid.json
+*.pfx
+*.key
+*.pem
+Thumbs.db
+Desktop.ini

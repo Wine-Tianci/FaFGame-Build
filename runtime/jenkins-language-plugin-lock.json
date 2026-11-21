@@ -1,0 +1,26 @@
+[
+  {
+    "name": "locale",
+    "version": "641.v84f22d75fd8b_",
+    "sha256": "vEYOlfrUrgl4PxUeRIAEmDfqAt4ZDkgxpp+2pAouCGU=",
+    "size": 19100,
+    "url": "https://updates.jenkins.io/download/plugins/locale/641.v84f22d75fd8b_/locale.hpi",
+    "requiredCore": "2.528.3"
+  },
+  {
+    "name": "localization-support",
+    "version": "1.41.v186a_c1569458",
+    "sha256": "+d20XLyGqCReXjBBu1yWw9/DXYrwAUdLxv19trFXtIU=",
+    "size": 17513,
+    "url": "https://updates.jenkins.io/download/plugins/localization-support/1.41.v186a_c1569458/localization-support.hpi",
+    "requiredCore": "2.479.3"
+  },
+  {
+    "name": "localization-zh-cn",
+    "version": "371.v23851f835d6b_",
+    "sha256": "NOL90jYYnX7Q1/g/tX9PBzLZOSfPjUcdbg4nB8kjb6E=",
+    "size": 569475,
+    "url": "https://updates.jenkins.io/download/plugins/localization-zh-cn/371.v23851f835d6b_/localization-zh-cn.hpi",
+    "requiredCore": "2.387.3"
+  }
+]
