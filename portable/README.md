@@ -1,5 +1,7 @@
 # FAF Windows 便携打包工具
 
+本手册用于已组装的便携发行包。请从 [GitHub Releases](https://github.com/Wine-Tianci/FaFGame-Build/releases/latest) 下载 `faf-build-portable-*.zip`。GitHub 的“Code → Download ZIP”或“Source code”只含源码，不能直接双击这里的入口使用；小型更新 ZIP 也需要已有完整便携工具。
+
 适用于 Windows x64，使用系统自带 Windows PowerShell 5.1。包内已带 Java、Git、Godot、Windows 导出模板、Jenkins 和流水线插件，无需安装 Java、Steam、Git 或 Godot，也无需修改 JAVA_HOME、系统 PATH。首次启动不下载依赖。
 
 1. **完整解压** ZIP 到有写入权限、路径较短的本地目录，例如 `D:\faf-build`。不要在压缩包中直接运行，不要放在游戏源码目录内。
