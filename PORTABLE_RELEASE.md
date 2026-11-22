@@ -12,6 +12,8 @@ Jenkins 工作区仅保存精确的 run.json 以及交付归档；成功归档 Z
 
 验证：Build-Workspace.Tests.ps1 通过 19 项，Failure-Report.Tests.ps1 通过 23 项，入口 6 项、便携基础 22 项、Jenkins 启动器 48 项、更新器 7 项通过。真实 Jenkins 验收通过 42 项，证据在 verification/pa-555c1a9d；夹具包含用户日志中的 Dialogic SVG.import 路径，在旧布局超过 MAX_PATH，新 faf-work 布局下可解压、导入并成功完成 Debug/Release。失败测试和分支读取错误仍各只归档一个报告。测试实例已停机。
 
+完整 ZIP 已实际解压，795 个 payload 文件与 manifest hash 一致，安装后的 E:/fb 脚本与发行包匹配。GitHub Release v2026.11.22 已发布完整 ZIP、更新 ZIP 及两份校验文件；上传附件大小和 SHA-256 均已核验。本机脚本备份在 E:/fb/runtime/update-backups/20261122T075347-02c4467d。
+
 ## 2026-11-21：单文件失败报告
 
 新版便携包为 `dist/faf-build-portable-20261121.zip`；已有工具使用 `dist/faf-build-update-20261121.zip`。更新包应解压到现有工具目录之外，先运行原工具 Stop.cmd，再双击更新包的 Update.cmd 并输入原工具目录。更新会校验文件、备份原脚本和 manifest，保留本机账号、仓库/端口配置及历史；下次 Start.cmd 自动加载新的可信 Pipeline。
