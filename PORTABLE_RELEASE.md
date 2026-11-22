@@ -1,5 +1,17 @@
 # Windows x64 便携发布
 
+## 2026-11-22：同级 faf-work
+
+新版完整包为 dist/faf-build-portable-20261122.zip，已有工具用 dist/faf-build-update-20261122.zip。实际构建从 Jenkins 的多层工作区迁至工具根目录/faf-work/<构建号>/<16位运行ID>/，与 jenkins-home、Start.cmd、Stop.cmd 同级。CLI 默认也使用 faf-work；显式 BuildRoot 继续有效。
+
+Jenkins 工作区仅保存精确的 run.json 以及交付归档；成功归档 ZIP/清单，失败仍只归档 failure-report.log。运行记录验证所属构建、源码、短运行 ID、数据根和归档根，拒绝跨构建或 reparse/junction 指向。旧的账号、配置、历史和原工作区不会删除。
+
+对于收到的 263 字符 Dialogic 导入文件路径，新布局连同 16 位运行编号将其降至约 194 个字符，安装位置不变。运行时间继续记录在清单中。极深的安装路径/资源目录仍不能保证任意长度支持；本更新不更改系统长路径策略，也不修改游戏源码或测试预期。
+
+用户最新日志的路径问题已经绕过，失败转为游戏 run_attribute_menu_tests.gd 的两项断言（魔法轮盘 Q 键和 Bag 输入代码）；这与工具目录改造分别处理。
+
+验证：Build-Workspace.Tests.ps1 通过 19 项，Failure-Report.Tests.ps1 通过 23 项，入口 6 项、便携基础 22 项、Jenkins 启动器 48 项、更新器 7 项通过。真实 Jenkins 验收通过 42 项，证据在 verification/pa-555c1a9d；夹具包含用户日志中的 Dialogic SVG.import 路径，在旧布局超过 MAX_PATH，新 faf-work 布局下可解压、导入并成功完成 Debug/Release。失败测试和分支读取错误仍各只归档一个报告。测试实例已停机。
+
 ## 2026-11-21：单文件失败报告
 
 新版便携包为 `dist/faf-build-portable-20261121.zip`；已有工具使用 `dist/faf-build-update-20261121.zip`。更新包应解压到现有工具目录之外，先运行原工具 Stop.cmd，再双击更新包的 Update.cmd 并输入原工具目录。更新会校验文件、备份原脚本和 manifest，保留本机账号、仓库/端口配置及历史；下次 Start.cmd 自动加载新的可信 Pipeline。

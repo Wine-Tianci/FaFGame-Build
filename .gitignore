@@ -1,6 +1,7 @@
 # Generated dependencies and machine-specific state
 /.publish/
 /builds/
+/faf-work/
 /dist/
 /jenkins-home/
 /logs/

@@ -66,17 +66,24 @@ pipeline {
                     & (Join-Path $env:FAF_BUILD_HOME 'scripts/Check-JenkinsWorkspace.ps1') -BuildHome $env:FAF_BUILD_HOME -Workspace $env:WORKSPACE -SourceRepository $env:FAF_SOURCE_REPOSITORY | Out-Null
                     if ($env:BUILD_NUMBER -notmatch '^[0-9]+$') { throw 'Invalid Jenkins BUILD_NUMBER.' }
                     if ($env:FAF_SELECTED_MODE -cnotin @('Debug','Release')) { throw 'Invalid build mode.' }
-                    $buildRoot = Join-Path $env:WORKSPACE ('builds/' + $env:BUILD_NUMBER)
+                    . (Join-Path $env:FAF_BUILD_HOME 'scripts/Build-Workspace.ps1')
+                    $layout = Get-BuildWorkspaceLayout $env:FAF_BUILD_HOME $env:WORKSPACE $env:BUILD_NUMBER $env:FAF_SOURCE_REPOSITORY
+                    $buildRoot = $layout.dataRoot
                     $template = Join-Path $env:FAF_TEMPLATE_DIRECTORY ('windows_' + $env:FAF_SELECTED_MODE.ToLowerInvariant() + '_x86_64.exe')
-                    & (Join-Path $env:FAF_BUILD_HOME 'scripts/Build-Windows.ps1') -SourceRepository $env:FAF_SOURCE_REPOSITORY -BranchName $env:FAF_SELECTED_BRANCH -GodotPath $env:GODOT_BIN -BuildRoot $buildRoot -BuildMode $env:FAF_SELECTED_MODE -Version $env:FAF_SELECTED_VERSION -BuildNumber $env:BUILD_NUMBER -RunTests:([bool]::Parse($env:FAF_RUN_TESTS)) -ExportTemplate $template
+                    & (Join-Path $env:FAF_BUILD_HOME 'scripts/Build-Windows.ps1') -SourceRepository $env:FAF_SOURCE_REPOSITORY -BranchName $env:FAF_SELECTED_BRANCH -GodotPath $env:GODOT_BIN -BuildRoot $buildRoot -BuildMode $env:FAF_SELECTED_MODE -Version $env:FAF_SELECTED_VERSION -BuildNumber $env:BUILD_NUMBER -RunTests:([bool]::Parse($env:FAF_RUN_TESTS)) -ExportTemplate $template -RunRecordPath $layout.runRecord
                     exit $LASTEXITCODE
                 '''
             }
         }
         stage('归档构建产物') {
             steps {
-                archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/*/artifacts/*.zip", fingerprint: true
-                archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/*/artifacts/*.json", fingerprint: true
+                powershell encoding: 'UTF-8', script: '''
+                    $ErrorActionPreference = 'Stop'
+                    & (Join-Path $env:FAF_BUILD_HOME 'scripts/Copy-BuildArtifacts.ps1') -BuildHome $env:FAF_BUILD_HOME -Workspace $env:WORKSPACE -BuildNumber $env:BUILD_NUMBER -SourceRepository $env:FAF_SOURCE_REPOSITORY
+                    exit $LASTEXITCODE
+                '''
+                archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/artifacts/*.zip", fingerprint: true
+                archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/artifacts/*.json", fingerprint: true
             }
         }
     }
@@ -88,7 +95,9 @@ pipeline {
                     powershell encoding: 'UTF-8', script: '''
                         $ErrorActionPreference = 'Stop'
                         & (Join-Path $env:FAF_BUILD_HOME 'scripts/Check-JenkinsWorkspace.ps1') -BuildHome $env:FAF_BUILD_HOME -Workspace $env:WORKSPACE -SourceRepository $env:FAF_SOURCE_REPOSITORY | Out-Null
-                        & (Join-Path $env:FAF_BUILD_HOME 'scripts/New-BuildFailureReport.ps1') -BuildRoot (Join-Path $env:WORKSPACE ('builds/' + $env:BUILD_NUMBER)) -SourceRepository $env:FAF_SOURCE_REPOSITORY -BranchName $env:FAF_SELECTED_BRANCH -BuildMode $env:FAF_SELECTED_MODE -Version $env:FAF_SELECTED_VERSION -BuildNumber $env:BUILD_NUMBER -Result $env:FAF_BUILD_RESULT -PipelineMessage $env:FAF_FAILURE_MESSAGE
+                        . (Join-Path $env:FAF_BUILD_HOME 'scripts/Build-Workspace.ps1')
+                        $layout = Get-BuildWorkspaceLayout $env:FAF_BUILD_HOME $env:WORKSPACE $env:BUILD_NUMBER $env:FAF_SOURCE_REPOSITORY
+                        & (Join-Path $env:FAF_BUILD_HOME 'scripts/New-BuildFailureReport.ps1') -BuildRoot $layout.archiveRoot -SourceRepository $env:FAF_SOURCE_REPOSITORY -BranchName $env:FAF_SELECTED_BRANCH -BuildMode $env:FAF_SELECTED_MODE -Version $env:FAF_SELECTED_VERSION -BuildNumber $env:BUILD_NUMBER -Result $env:FAF_BUILD_RESULT -PipelineMessage $env:FAF_FAILURE_MESSAGE -RunRecordPath $layout.runRecord -ExpectedBuildRoot $layout.dataRoot
                         exit $LASTEXITCODE
                     '''
                     archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/failure-report.log"

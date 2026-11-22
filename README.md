@@ -8,8 +8,8 @@ FAF 游戏的独立 Windows 打包工具。提供本机 Jenkins 网页入口，�
 
 从 [Releases](https://github.com/Wine-Tianci/FaFGame-Build/releases) 下载：
 
-- **首次使用：** `faf-build-portable-20261121.zip`，约 338.5 MiB。
-- **已有便携工具：** `faf-build-update-20261121.zip`，约 25 KiB。
+- **首次使用：** `faf-build-portable-20261122.zip`，约 338.5 MiB。
+- **已有便携工具：** `faf-build-update-20261122.zip`，约 25 KiB。
 - 对应的 `.sha256` 文件用于校验下载内容。
 
 首次使用步骤：
@@ -30,7 +30,7 @@ FAF 游戏的独立 Windows 打包工具。提供本机 Jenkins 网页入口，�
 - 便携工具启动失败：查看工具目录中的 `runtime/failure-report.log`。
 - 成功构建只归档游戏 ZIP 和构建清单，原始诊断日志保留在本机。
 
-已知路径限制：PowerShell 5.1/.NET 解压真实项目时，过深路径可能超过传统 Windows 路径长度限制。使用 `E:\fb` 等短目录；工具运行目录不应放在源码仓库中。
+实际构建在工具根目录同级的 `faf-work/<构建号>/<16位运行ID>/` 中完成，安装位置不变；Jenkins 工作区只接收 ZIP、清单或失败报告。对于近期 263 字符的 Dialogic 文件路径，新布局降到约 194 字符。特别深的安装路径/资源名仍受 Windows 和引擎限制。
 
 ## 源码结构
 
@@ -66,7 +66,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\New-PortablePa
 
 ## 验证与文档
 
-失败报告测试通过 23 项、更新器测试 7 项、便携基础测试 22 项、Jenkins 启动器测试 48 项。真实 Jenkins 验收通过 31 项，覆盖 Debug/Release、失败报告归档、认证、安全停机和目录迁移。以上使用独立测试工程，实际游戏提交仍需通过自身构建检查。
+失败报告测试通过 23 项、更新器测试 7 项、便携基础测试 22 项、Jenkins 启动器测试 48 项。真实 Jenkins 验收通过 42 项，覆盖 Debug/Release、失败报告归档、认证、安全停机和目录迁移。以上使用独立测试工程，实际游戏提交仍需通过自身构建检查。
 
 常用验证：
 

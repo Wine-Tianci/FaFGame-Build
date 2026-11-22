@@ -16,7 +16,7 @@ function Assert($Condition,[string]$Message) {
     $results.Add($Message); Write-Host "PASS: $Message"
 }
 $package = Test-PortablePayload $PackageDirectory
-foreach ($name in @('jenkins-home','portable-config.json','builds','logs','runtime/dependencies.json','runtime/jenkins.pid.json')) {
+foreach ($name in @('jenkins-home','portable-config.json','builds','faf-work','logs','runtime/dependencies.json','runtime/jenkins.pid.json')) {
     Assert (-not (Test-Path -LiteralPath (Join-Path $package.root $name))) ("Clean release excludes $name")
 }
 Copy-Item -LiteralPath $package.root -Destination $homePath -Recurse
@@ -39,6 +39,18 @@ script = ExtResource("1")
 '@
 Write-Utf8 (Join-Path $source 'faf_game/tests/run_portable_tests.gd') "extends SceneTree`nfunc _initialize():`n`tprint(`"portable acceptance suite passed`")`n`tquit()`n"
 Write-Utf8 (Join-Path $source 'faf_config/items.csv') "id,name`n1,portable`n"
+$deepRelative='faf_game/addons/dialogic/Modules/DefaultLayoutParts/Layer_SpeakerPortraitTextbox/speaker-textbox-icon.svg'
+$deepFile=Join-Path $source $deepRelative
+[IO.Directory]::CreateDirectory((Split-Path $deepFile -Parent))|Out-Null
+Write-Utf8 $deepFile '<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8" fill="#fff"/></svg>'
+Write-Utf8 (Join-Path $source '.gitignore') "faf_game/.godot/`n"
+$prepare=Join-Path $testRootPath 'prepare'
+[IO.Directory]::CreateDirectory((Join-Path $prepare 'logs'))|Out-Null
+Invoke-BuildProcess -FilePath (Get-PortableRuntime $homePath).godot -Arguments @('--headless','--path',(Join-Path $source 'faf_game'),'--editor','--quit') -WorkingDirectory $source -Environment (New-GodotEnvironment $prepare) -TimeoutSeconds 90 -LogPrefix (Join-Path $prepare 'logs/import') -CheckGodotErrors|Out-Null
+Assert (Test-Path -LiteralPath ($deepFile+'.import')) 'Fixture includes the same deep Dialogic import filename as the user log'
+$oldRunName='20261121T160738418Z-3e9645c88e854d379303548da65de287'
+$oldDeepPath=Join-Path $homePath ('jenkins-home/workspace/faf-windows/builds/1/'+$oldRunName+'/source/'+$deepRelative+'.import')
+Assert ($oldDeepPath.Length -gt 259) 'The deep fixture would exceed MAX_PATH in the old workspace layout'
 $git = (Get-PortableRuntime $homePath).git
 foreach ($arguments in @(@('init','-b','main'),@('config','user.name','Portable Fixture'),@('config','user.email','portable@example.invalid'),@('add','.'),@('commit','-m','portable fixture'))) {
     Invoke-BuildProcess -FilePath $git -Arguments (@('-C',$source) + $arguments) -WorkingDirectory $source | Out-Null
@@ -110,6 +122,14 @@ try {
         $artifactNames = @($build.artifacts.fileName)
         Assert (@($artifactNames | Where-Object { $_.EndsWith('.zip') }).Count -gt 0 -and $artifactNames -contains 'build-manifest.json') ("$mode ZIP and build manifest archived")
         Assert ($artifactNames.Count -eq 2) ("$mode successful archive excludes diagnostics")
+        $archiveRoot=Join-Path $homePath ('jenkins-home/workspace/faf-windows/builds/'+$build.number)
+        $runRecord=[IO.File]::ReadAllText((Join-Path $archiveRoot 'run.json'))|ConvertFrom-Json
+        $expectedData=Get-SafeFullPath (Join-Path $homePath ('faf-work/'+$build.number))
+        Assert ((Split-Path $runRecord.runDirectory -Parent) -eq $expectedData -and $runRecord.status -eq 'success') ("$mode real work occurs in same-level faf-work")
+        Assert ((Split-Path $runRecord.runDirectory -Leaf) -match '^[0-9a-f]{16}$') ("$mode run uses a compact unique ID")
+        $imported=Join-Path $runRecord.runDirectory ('source/'+$deepRelative+'.import')
+        Assert ($imported.Length -lt 260 -and (Test-Path -LiteralPath $imported)) ("$mode deep Dialogic resource extracts and imports below MAX_PATH")
+        Assert (-not (Test-Path -LiteralPath (Join-Path $archiveRoot 'source'))) ("$mode Jenkins workspace does not hold the source snapshot")
     }
     $response=Invoke-WebRequest -Uri ($baseUrl+'/job/faf-windows/buildWithParameters') -Method Post -Headers $headers -Body @{BUILD_BRANCH='broken-fixture';BUILD_MODE='Debug';BUILD_VERSION='expected-failure';RUN_TESTS='true'} -UseBasicParsing
     $queueUrl=$response.Headers['Location']

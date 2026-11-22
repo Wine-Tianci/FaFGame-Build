@@ -10,29 +10,44 @@ param(
     [switch]$RunTests,
     [switch]$KeepStaging,
     [int]$TimeoutSeconds = 120,
-    [string]$ExportTemplate
+    [string]$ExportTemplate,
+    [string]$RunRecordPath
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Build-Common.ps1')
 . (Join-Path $PSScriptRoot 'Package-Helpers.ps1')
 . (Join-Path $PSScriptRoot 'Failure-Report.ps1')
+. (Join-Path $PSScriptRoot 'Build-Workspace.ps1')
 $toolRoot = Split-Path $PSScriptRoot -Parent
 $originalAppData = $env:APPDATA
 $run = $null; $staging = $null; $zipPath = $null; $artifactManifest = $null
 $output = $null; $repo = $null; $sha = $null
+$recordPath = $null; $runRecord = $null
 try {
     $repo = Get-SafeFullPath $SourceRepository
-    if (-not $BuildRoot) { $BuildRoot = Join-Path $toolRoot 'builds' }
+    if (-not $BuildRoot) { $BuildRoot = Join-Path $toolRoot 'faf-work' }
     $output = Get-SafeFullPath $BuildRoot
     Assert-SeparatePaths $repo $output
+    if ($RunRecordPath) {
+        $recordPath = Get-SafeFullPath $RunRecordPath
+        $recordDirectory = Get-SafeFullPath (Split-Path $recordPath -Parent)
+        Assert-SeparatePaths $repo $recordDirectory
+        Assert-SeparatePaths $output $recordDirectory
+        if ((Split-Path $recordPath -Leaf) -ine 'run.json') { throw 'RunRecordPath must name run.json.' }
+        if (Test-Path -LiteralPath $recordPath) { throw 'Run record already exists; refusing to overwrite an earlier build.' }
+        [IO.Directory]::CreateDirectory($recordDirectory) | Out-Null
+        $runRecord = [ordered]@{ schemaVersion=1; buildRoot=$output; runDirectory=$null; runId=$null; sourceRepository=$repo; buildNumber=$BuildNumber; archiveDirectory=$recordDirectory; status='preflight' }
+        Write-Utf8 $recordPath ($runRecord | ConvertTo-Json -Depth 5)
+    }
     if (-not (Test-Path -LiteralPath $repo -PathType Container)) { throw "Source repository not found: $repo" }
     $actualRoot = Get-SafeFullPath (Invoke-ReadGit $repo @('rev-parse','--show-toplevel'))
     if (-not $repo.Equals($actualRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'SourceRepository must be the Git repository root.' }
-    [IO.Directory]::CreateDirectory($output) | Out-Null
-    $runId = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssfffZ') + '-' + [guid]::NewGuid().ToString('N')
-    $run = Join-Path $output $runId
-    # New-Item without -Force refuses an existing run, even on an unlikely ID collision.
-    New-Item -ItemType Directory -Path $run | Out-Null
+    $run = New-CompactBuildRunDirectory $output
+    $runId = Split-Path $run -Leaf
+    if ($runRecord) {
+        $runRecord.runDirectory=$run; $runRecord.runId=$runId; $runRecord.status='running'
+        Write-Utf8 $recordPath ($runRecord | ConvertTo-Json -Depth 5)
+    }
     foreach ($directory in @('logs','source','artifacts')) { [IO.Directory]::CreateDirectory((Join-Path $run $directory)) | Out-Null }
     if ($BuildMode -cnotin @('Debug','Release')) { throw 'BuildMode must be Debug or Release.' }
     if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 86400) { throw 'TimeoutSeconds must be between 1 and 86400.' }
@@ -135,10 +150,15 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($package, $zipPath, [IO.Compression.CompressionLevel]::Optimal, $true)
     if (-not $KeepStaging) { Remove-OwnedStaging $staging $run }
+    if ($runRecord) { $runRecord.status='success'; Write-Utf8 $recordPath ($runRecord | ConvertTo-Json -Depth 5) }
     Write-Host "SUCCESS: $zipPath"
     exit 0
 } catch {
     $failure = $_
+    if ($runRecord) {
+        try { $runRecord.status='failed'; Write-Utf8 $recordPath ($runRecord | ConvertTo-Json -Depth 5) }
+        catch { Write-Warning 'Could not update build run record; original failure is preserved.' }
+    }
     if ($run -and (Test-Path -LiteralPath $run)) {
         # A partially written ZIP or a failure during cleanup must never look successful.
         foreach ($partial in @($zipPath,$artifactManifest)) { if ($partial -and (Test-Path -LiteralPath $partial)) { Remove-Item -LiteralPath $partial -Force } }
