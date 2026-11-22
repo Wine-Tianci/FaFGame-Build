@@ -30,7 +30,21 @@ run/main_scene="res://main.tscn"
 [rendering]
 renderer/rendering_method="gl_compatibility"
 '@
-Write-Utf8 (Join-Path $source 'faf_game/main.gd') "extends Node`nfunc _ready():`n`tget_tree().quit()`n"
+Write-Utf8 (Join-Path $source 'faf_game/main.gd') @"
+extends Node
+enum SessionState { WaitingForStart, Starting, Running }
+var session_state=SessionState.WaitingForStart
+var level_prepared=false
+var player: Node
+var current_level_instance: Node
+func start_new_game():
+    player=Node.new()
+    add_child(player)
+    current_level_instance=Node.new()
+    add_child(current_level_instance)
+    session_state=SessionState.Running
+    level_prepared=true
+"@
 Write-Utf8 (Join-Path $source 'faf_game/main.tscn') @'
 [gd_scene load_steps=2 format=3]
 [ext_resource type="Script" path="res://main.gd" id="1"]
@@ -98,7 +112,7 @@ try {
         Assert $rejectedUnready 'Repeated launch cannot claim readiness without bootstrap marker'
     } finally { Write-Utf8 $readyMarker $savedMarker }
     foreach ($mode in @('Debug','Release')) {
-        $response = Invoke-WebRequest -Uri ($baseUrl + '/job/faf-windows/buildWithParameters') -Method Post -Headers $headers -Body @{BUILD_BRANCH='main';BUILD_MODE=$mode;BUILD_VERSION=('portable-' + $mode);RUN_TESTS='true'} -UseBasicParsing
+        $response = Invoke-WebRequest -Uri ($baseUrl + '/job/faf-windows/buildWithParameters') -Method Post -Headers $headers -Body @{BUILD_BRANCH='main';BUILD_MODE=$mode;BUILD_VERSION=('portable-' + $mode);RUN_TESTS='false'} -UseBasicParsing
         $queueUrl = $response.Headers['Location']
         $deadline = [DateTime]::UtcNow.AddMinutes(5)
         $buildUrl = $null
@@ -146,11 +160,12 @@ try {
         if(-not $failedBuild.building) {break}
         Start-Sleep -Seconds 1
     } while([DateTime]::UtcNow -lt $deadline)
-    Assert ($failedBuild.result -eq 'FAILURE') 'Intentional test error still fails the real Pipeline'
-    Assert (@($failedBuild.artifacts).Count -eq 1 -and $failedBuild.artifacts[0].fileName -eq 'failure-report.log') 'Failed Pipeline archives exactly one consolidated report'
-    $reportContent=(Invoke-WebRequest -Uri ($buildUrl+'artifact/'+$failedBuild.artifacts[0].relativePath) -Headers $headers -UseBasicParsing).Content
+    Assert ($failedBuild.result -eq 'SUCCESS') 'Optional functional error does not fail the real Pipeline'
+    Assert (@($failedBuild.artifacts).Count -eq 3) 'Advisory failure archives ZIP, manifest and one test report'
+    $testArtifact=@($failedBuild.artifacts|Where-Object fileName -eq 'test-report.log')[0]
+    $reportContent=(Invoke-WebRequest -Uri ($buildUrl+'artifact/'+$testArtifact.relativePath) -Headers $headers -UseBasicParsing).Content
     Write-Utf8 (Join-Path $testRootPath 'expected-failure-report.log') $reportContent
-    Assert ($reportContent.Contains('FAF_EXPECTED_REPORT_FAILURE') -and $reportContent.Contains('run_portable_tests') -and $reportContent.Contains('exitCode') -and $reportContent.Contains('Stack:')) 'Downloaded report contains test error, original stack and process records'
+    Assert ($reportContent.Contains('FAF_EXPECTED_REPORT_FAILURE') -and $reportContent.Contains('run_portable_tests') -and $reportContent.Contains('exitCode') -and $reportContent.Contains('non-blocking')) 'Downloaded advisory report contains original test errors and process records'
     # Temporarily hide this test fixture's own Git metadata to exercise failure
     # while obtaining the branch list, before Build-Windows creates a run.
     $gitMetadata=Get-SafeFullPath (Join-Path $source '.git')

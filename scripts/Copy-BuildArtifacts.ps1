@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$BuildHome,
       [Parameter(Mandatory=$true)][string]$Workspace,
       [Parameter(Mandatory=$true)][string]$BuildNumber,
@@ -20,5 +20,7 @@ foreach($file in @($zips[0].FullName,$manifest)) {
     Copy-Item -LiteralPath $file -Destination $target -Force
     if((Get-FileHash -LiteralPath $file).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {throw 'Copied artifact checksum differs from its source.'}
 }
+$testReport=Get-SafeFullPath (Join-Path $artifacts 'test-report.log')
+if(Test-Path -LiteralPath $testReport -PathType Leaf){Copy-Item -LiteralPath $testReport -Destination (Get-SafeFullPath (Join-Path $destination 'test-report.log')) -Force}
 Write-Host "Copied current build deliveries: $destination"
 exit 0

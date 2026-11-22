@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$TargetDirectory)
 $ErrorActionPreference='Stop'
 $patchRoot=$PSScriptRoot
@@ -24,7 +24,7 @@ try {
     if($patch.schemaVersion -ne 1) {throw 'Unsupported update manifest.'}
     $paths=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     foreach($file in $patch.files) {
-        if($file.path -notmatch '^(scripts/[^/\\]+\.ps1|Jenkinsfile|README\.md)$' -or -not $paths.Add($file.path)) {throw 'Update contains an unsupported or duplicate file.'}
+        if($file.path -notmatch '^(scripts/[^/\\]+\.(ps1|gd)|portable/bootstrap\.groovy|Jenkinsfile|README\.md)$' -or -not $paths.Add($file.path)) {throw 'Update contains an unsupported or duplicate file.'}
         $inputPath=Resolve-PortablePath $patchRoot $file.path
         $null=Resolve-PortablePath $target $file.path
         if((Get-FileHash -LiteralPath $inputPath -Algorithm SHA256).Hash -ine $file.sha256) {throw ('Update hash mismatch: '+$file.path)}

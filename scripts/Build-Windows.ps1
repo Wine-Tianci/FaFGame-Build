@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$SourceRepository,
     [Parameter(Mandatory=$true)][string]$BranchName,
@@ -18,6 +18,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Package-Helpers.ps1')
 . (Join-Path $PSScriptRoot 'Failure-Report.ps1')
 . (Join-Path $PSScriptRoot 'Build-Workspace.ps1')
+. (Join-Path $PSScriptRoot 'Basic-Game-Flow.ps1')
 $toolRoot = Split-Path $PSScriptRoot -Parent
 $originalAppData = $env:APPDATA
 $run = $null; $staging = $null; $zipPath = $null; $artifactManifest = $null
@@ -106,14 +107,15 @@ try {
     $presetText = $presetText.Replace(('custom_template/' + $BuildMode.ToLowerInvariant() + '=""'), ('custom_template/' + $BuildMode.ToLowerInvariant() + '="' + $templateValue + '"'))
     Write-Utf8 $presetPath $presetText
     # Check in this scope so no nested PowerShell process is needed.
-    & (Join-Path $PSScriptRoot 'Godot-Checks.ps1') -GodotPath $GodotPath -ProjectDirectory $project -RunDirectory $run -TimeoutSeconds $TimeoutSeconds -RunTests:$RunTests
+        $null = & (Join-Path $PSScriptRoot 'Godot-Checks.ps1') -GodotPath $GodotPath -ProjectDirectory $project -RunDirectory $run -TimeoutSeconds $TimeoutSeconds
+    $null = Install-BasicGameFlowProbe $project $run
     $staging = Join-Path $run 'staging'
     $package = Join-Path $staging $packageName
     $game = Join-Path $package 'game'
     [IO.Directory]::CreateDirectory($game) | Out-Null
     Copy-Item -LiteralPath $config -Destination (Join-Path $package 'faf_config') -Recurse
     $exe = Join-Path $game 'faf.exe'
-    $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments @('--headless','--path',$project,('--export-' + $BuildMode.ToLowerInvariant()),'Windows Desktop',$exe) -WorkingDirectory $project -Name 'windows-export' -RunDirectory $run -TimeoutSeconds $TimeoutSeconds
+    $null = Invoke-GameExport $GodotPath $project $run $BuildMode $exe $TimeoutSeconds
     Assert-NoReparseTree $package
     foreach ($required in @($exe,(Join-Path $game 'faf.pck'))) {
         if (-not (Test-Path -LiteralPath $required -PathType Leaf) -or (Get-Item -LiteralPath $required).Length -eq 0) { throw "Export missing or empty: $required" }
@@ -123,7 +125,7 @@ try {
     [IO.Directory]::CreateDirectory($smokeCwd) | Out-Null
     $smokeSaveDirectory = Join-Path $game 'saves'
     if (Test-Path -LiteralPath $smokeSaveDirectory) { throw 'Export unexpectedly contains save data before runtime verification.' }
-    $null = Invoke-IsolatedGodot -GodotPath $exe -Arguments @('--headless','--quit-after','60') -WorkingDirectory $smokeCwd -Name 'exported-game-smoke' -RunDirectory $run -TimeoutSeconds $TimeoutSeconds
+    $null = Invoke-IsolatedGodot -GodotPath $exe -Arguments @('--headless','--','--faf-build-basic-flow',('--faf-flow-timeout=' + [Math]::Max(1,$TimeoutSeconds-5))) -WorkingDirectory $smokeCwd -Name 'basic-game-flow' -RunDirectory $run -TimeoutSeconds $TimeoutSeconds
     # Only remove newly generated verification data after a successful smoke check.
     if (Test-Path -LiteralPath $smokeSaveDirectory) {
         $ownedSavePath = Get-SafeFullPath $smokeSaveDirectory
@@ -132,7 +134,14 @@ try {
         Assert-NoReparseTree $ownedSavePath
         Remove-Item -LiteralPath $ownedSavePath -Recurse -Force
     }
+        try { $advisory = & (Join-Path $PSScriptRoot 'Godot-Checks.ps1') -GodotPath $GodotPath -ProjectDirectory $project -RunDirectory $run -TimeoutSeconds $TimeoutSeconds -RunTests:$RunTests -SkipImport }
+    catch {
+        $advisory=[ordered]@{requested=[bool]$RunTests;total=0;passed=0;failed=1;blocking=$false;setupError=$_.Exception.Message}
+        Write-Warning 'Optional suite setup/reporting failed; the basic-flow-verified package will still be produced.'
+        try {$null=Write-FailureReport -ReportPath (Join-Path $run 'artifacts/test-report.log') -FailureRecord $_ -Context @{operation='Optional functional test setup';blocking=$false} -LogsDirectory (Join-Path $run 'logs')} catch {Write-Warning 'Optional diagnostics could not be written; see local console output.'}
+    }
     $manifest = [ordered]@{
+        checks=@{basicFlow='passed';advisory=$advisory}
         schemaVersion=1; sourceRepository=$repo; selectedBranch=$BranchName; fullSha=$sha; shortSha=$shortSha
         buildMode=$BuildMode; buildId=$runId; buildNumber=$BuildNumber; version=$Version; packageName=$packageName
         godotVersion=$engineVersion; godotOriginalPath=$originalGodotPath; godotRuntimePath=$GodotPath

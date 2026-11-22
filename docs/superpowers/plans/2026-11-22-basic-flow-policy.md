@@ -1,0 +1,5 @@
+# Basic-flow packaging policy
+
+User explicitly authorized functional test failures to be non-blocking. Default full-suite execution is off; the single blocking runtime test runs the exported game, starts a new game, waits for session/level/player readiness and exits normally. Imports, exports, missing native dependencies and basic-flow failures remain build failures. Optional project suites run to completion, preserve each raw log and produce a single advisory test-report.log; manifest records requested/passed/failed counts.
+
+Implement a snapshot-only gated smoke autoload, never modify the source game. Its node queues itself for deletion during normal play; only --faf-build-basic-flow invokes the verification path. Test with real Godot: optional failing suite must still produce ZIP/report, default skips suites, basic failure blocks ZIP. Then build latest remote main and report the observed export/basic outcome. Publish updated tool source, full/update package and preserve existing installation data.

@@ -1,10 +1,12 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$GodotPath,
       [Parameter(Mandatory=$true)][string]$ProjectDirectory,
       [Parameter(Mandatory=$true)][string]$RunDirectory,
-      [int]$TimeoutSeconds = 120, [switch]$RunTests)
+      [int]$TimeoutSeconds = 120, [switch]$RunTests, [switch]$SkipImport)
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Build-Common.ps1')
+. (Join-Path $PSScriptRoot 'Failure-Report.ps1')
+if (-not $SkipImport) {
 # This file is dot-sourced by the build entrypoint; failures propagate to its failure record.
 # Editor plugins can preload UID resources before a fresh snapshot's first scan
 # populates the UID cache. Bootstrap with only editor_plugins/enabled cleared;
@@ -35,7 +37,9 @@ if ($pluginSection.Success) {
     }
 }
 $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments @('--headless','--path',$ProjectDirectory,'--editor','--quit') -WorkingDirectory $ProjectDirectory -Name 'editor-import' -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds
-$null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments @('--headless','--path',$ProjectDirectory,'--quit-after','60') -WorkingDirectory $ProjectDirectory -Name 'main-scene-smoke' -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds
+}
+$advisoryResults = @()
+
 if ($RunTests) {
     $testDir = Join-Path $ProjectDirectory 'tests'
     # Generate an external-owned runner in the disposable snapshot. The source repository
@@ -78,12 +82,18 @@ func _run_suite() -> void:
                 } else {
                     $argsForTest = @('--scene',("res://$runnerName.tscn"),'--',$resourcePath)
                 }
-                $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments (@('--headless','--path',$ProjectDirectory) + $argsForTest) -WorkingDirectory $ProjectDirectory -Name ("test-$index-" + $test.BaseName) -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds
+                $casePassed=$true; $caseError=''
+                try { $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments (@('--headless','--path',$ProjectDirectory) + $argsForTest) -WorkingDirectory $ProjectDirectory -Name ("test-$index-" + $test.BaseName) -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds }
+                catch { $casePassed=$false; $caseError=$_.Exception.Message; Write-Warning ("Advisory test failed: "+$test.BaseName+". Details retained in test-report.log.") }
+                $advisoryResults += [ordered]@{test=$test.BaseName;passed=$casePassed;error=$caseError}
             }
             # Collection runtime regression remains an optional manual scene test.
             foreach ($scene in @('item_system_test_runner.tscn')) {
                 if (Test-Path -LiteralPath (Join-Path $testDir $scene)) {
-                    $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments @('--headless','--path',$ProjectDirectory,'--scene',('res://tests/' + $scene)) -WorkingDirectory $ProjectDirectory -Name ('test-scene-' + [IO.Path]::GetFileNameWithoutExtension($scene)) -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds
+                        $casePassed=$true; $caseError=''
+                    try { $null = Invoke-IsolatedGodot -GodotPath $GodotPath -Arguments @('--headless','--path',$ProjectDirectory,'--scene',('res://tests/' + $scene)) -WorkingDirectory $ProjectDirectory -Name ('test-scene-' + [IO.Path]::GetFileNameWithoutExtension($scene)) -RunDirectory $RunDirectory -TimeoutSeconds $TimeoutSeconds }
+                    catch { $casePassed=$false; $caseError=$_.Exception.Message; Write-Warning ("Advisory scene failed: "+$scene+". Details retained in test-report.log.") }
+                    $advisoryResults += [ordered]@{test=$scene;passed=$casePassed;error=$caseError}
                 }
             }
         }
@@ -95,3 +105,12 @@ func _run_suite() -> void:
         }
     }
 }
+
+$summary=[ordered]@{requested=[bool]$RunTests;total=$advisoryResults.Count;passed=@($advisoryResults|Where-Object {$_.passed}).Count;failed=@($advisoryResults|Where-Object {-not $_.passed}).Count;blocking=$false}
+if($RunTests){
+    $logFiles=@(Get-ChildItem -LiteralPath (Join-Path $RunDirectory 'logs') -File|Where-Object Name -Like 'test-*'|Select-Object -ExpandProperty FullName)
+    $failures=($advisoryResults|Where-Object {-not $_.passed}|ForEach-Object {$_.test+': '+$_.error}) -join "`n"
+    $null=Write-FailureReport -ReportPath (Join-Path $RunDirectory 'artifacts/test-report.log') -Message ("ADVISORY TESTS - non-blocking. Passed: "+$summary.passed+", failed: "+$summary.failed+".`n"+$failures) -Context @{operation='Optional functional tests';blocking=$false} -LogFiles $logFiles
+    Write-Utf8 (Join-Path $RunDirectory 'test-results.json') (@{summary=$summary;tests=$advisoryResults}|ConvertTo-Json -Depth 7)
+}
+$summary

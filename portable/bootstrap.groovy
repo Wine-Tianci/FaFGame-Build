@@ -47,7 +47,7 @@ job.addProperty(new hudson.model.ParametersDefinitionProperty([
     new hudson.model.StringParameterDefinition('BUILD_BRANCH','','Local branch; leave empty to select during build.'),
     new hudson.model.ChoiceParameterDefinition('BUILD_MODE',['Debug','Release'] as String[],'Build mode'),
     new hudson.model.StringParameterDefinition('BUILD_VERSION','','Optional version'),
-    new hudson.model.BooleanParameterDefinition('RUN_TESTS',true,'Run additional test suite')
+    new hudson.model.BooleanParameterDefinition('RUN_TESTS',false,'Optional functional suites: log-only, never block packaging')
 ]))
 job.setDescription('FAF Windows build tool. Reads committed snapshots from the configured local repository.')
 job.save()

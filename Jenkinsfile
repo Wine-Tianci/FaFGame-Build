@@ -10,7 +10,7 @@ pipeline {
         string(name: 'BUILD_BRANCH', defaultValue: '', description: '构建分支：填写本地分支名；留空后可在构建流程中选择。只打包已提交的内容。')
         choice(name: 'BUILD_MODE', choices: ['Debug', 'Release'], description: '构建模式：Debug 为调试版，Release 为发布版。两种模式均保留 ImGui，适合内部测试。')
         string(name: 'BUILD_VERSION', defaultValue: '', description: '版本标识：选填；留空时按分支、提交短 SHA 和构建编号自动生成。')
-        booleanParam(name: 'RUN_TESTS', defaultValue: true, description: '运行测试：导出前执行测试套件。关闭此项仍会执行导入、主场景和导出包启动检查。')
+        booleanParam(name: 'RUN_TESTS', defaultValue: false, description: '可选功能测试：只记录结果，不阻止打包。默认只验证导出游戏开始新游戏并正常退出。')
     }
     stages {
         stage('检查构建目录') {
@@ -84,6 +84,7 @@ pipeline {
                 '''
                 archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/artifacts/*.zip", fingerprint: true
                 archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/artifacts/*.json", fingerprint: true
+                archiveArtifacts artifacts: "builds/${env.BUILD_NUMBER}/artifacts/test-report.log", allowEmptyArchive: true
             }
         }
     }

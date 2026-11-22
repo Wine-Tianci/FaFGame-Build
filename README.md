@@ -8,8 +8,8 @@ FAF 游戏的独立 Windows 打包工具。提供本机 Jenkins 网页入口，�
 
 从 [Releases](https://github.com/Wine-Tianci/FaFGame-Build/releases) 下载：
 
-- **首次使用：** `faf-build-portable-20261122.zip`，约 338.5 MiB。
-- **已有便携工具：** `faf-build-update-20261122.zip`，约 25 KiB。
+- **首次使用：** `faf-build-portable-20261122-basic.zip`，约 338.5 MiB。
+- **已有便携工具：** `faf-build-update-20261122-basic.zip`，约 25 KiB。
 - 对应的 `.sha256` 文件用于校验下载内容。
 
 首次使用步骤：
@@ -28,7 +28,7 @@ FAF 游戏的独立 Windows 打包工具。提供本机 Jenkins 网页入口，�
 
 - 构建失败：在对应 Jenkins 构建页面下载一个 `failure-report.log`，其中包含错误摘要、参数、调用栈、阶段日志和进程记录。
 - 便携工具启动失败：查看工具目录中的 `runtime/failure-report.log`。
-- 成功构建只归档游戏 ZIP 和构建清单，原始诊断日志保留在本机。
+- 默认只验证导出游戏开始新游戏并正常退出。完整功能测试默认关闭；可选运行时只记录日志，不阻止 ZIP。成功归档游戏 ZIP、清单，若请求完整测试则另有一个 test-report.log。
 
 实际构建在工具根目录同级的 `faf-work/<构建号>/<16位运行ID>/` 中完成，安装位置不变；Jenkins 工作区只接收 ZIP、清单或失败报告。对于近期 263 字符的 Dialogic 文件路径，新布局降到约 194 字符。特别深的安装路径/资源名仍受 Windows 和引擎限制。
 
@@ -79,3 +79,5 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Jenkins.Tests.ps
 [便携包手册](portable/README.md) · [发布与验收记录](PORTABLE_RELEASE.md) · [本机部署手册](LOCAL_USAGE.md)
 
 原始部署及验证文档保留历史日期与本机路径，重新部署时应使用自己的目录。第三方软件的许可随发行包或其 WAR/JPI 附带。
+
+当前策略已对 main 提交 f945d1c 实际验证：默认基本流程成功生成 Debug ZIP；开启完整功能测试时 64 个套件中 55 通过、9 失败，仍生成 ZIP 和汇总日志。功能失败不等于已经修复，清单保留准确统计。
